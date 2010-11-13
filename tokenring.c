@@ -1,10 +1,14 @@
 #include "tokenring.h"
 
-int main() {
+int main(int argc, char **argv) {
     int *res;
     prod_cons_t *prod_cons = cria_prod_cons();
+
     fprintf(stdout,"Digite B para criar bastão\n");
     prod_cons->is_initial = getchar();
+
+    prod_cons->port = atoi(argv[1]);
+    prod_cons->next_maq = argv[2];
 
     pthread_t prod, cons;
 

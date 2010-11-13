@@ -6,11 +6,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "socket.h"
+
 #define MAX_LINE 1024
-#define MAX_BUFF_SIZE 1
+#define MAX_BUFF_SIZE 2
 
 typedef struct prod_cons_t {
     char is_initial;
+    const char *next_maq;
+    unsigned int port;
     int prod_pos;
     int cons_pos;
     sem_t full;
