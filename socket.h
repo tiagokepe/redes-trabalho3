@@ -11,6 +11,7 @@
 #include <string.h>
 
 #define MSG_BASTAO "BASTAO"
+#define TIMEOUT 10
 
 typedef struct client_socket_t {
     int descriptor;
@@ -23,6 +24,7 @@ typedef struct server_socket_t {
 
 client_socket_t *init_client(unsigned int port, const char *next_maq);
 server_socket_t *init_server(unsigned int port);
+int wait_timeout(int descriptor);
 
 #endif
 

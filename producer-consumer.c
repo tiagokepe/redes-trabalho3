@@ -55,6 +55,8 @@ void *remove_buffer(prod_cons_t *prod_cons) {
     struct sockaddr_in from;
     server_socket_t *server;
     client_socket_t *client;
+    unsigned int i_send_msg = 0;
+    int timeout;
 
     server = init_server(prod_cons->port);
     client = init_client(prod_cons->port, prod_cons->next_maq);
@@ -69,34 +71,52 @@ void *remove_buffer(prod_cons_t *prod_cons) {
 //        printf("PROD - DO\n");
         clear_buff(&buff_rec);
         res_send = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
+        printf("Addr = %d\n", from.sin_addr.s_addr);
         printf("Recebeu msg = %s\n", buff_rec);
         if (res_send < 0) error("recvfrom");
 
         /* verifica se recebeu o bastão */
-        if ( !strcmp(buff_rec, MSG_BASTAO) ) {
-            //Fazer send_message()
+        if ( !strcmp(buff_rec, MSG_BASTAO) )
+            /* Se buffer vazio, envia o bastao imediatamente */
+            if(prod_cons->buff_filled == 0)
+                sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+            else {
+                //Fazer send_message()
 
-            printf("Entrou - Consumidor\n");
-            sem_wait(&prod_cons->full);
-            pthread_mutex_lock(&prod_cons->mutex);
+                printf("Entrou - Consumidor\n");
+                sem_wait(&prod_cons->full);
+                pthread_mutex_lock(&prod_cons->mutex);
 
-            /* consome novo item */
-            buff_send = prod_cons->buffer[prod_cons->cons_pos];
-            printf("Rettirou = %s\n", buff_send);
-            prod_cons->buffer[prod_cons->cons_pos] = NULL;
+                /* consome novo item */
+                buff_send = prod_cons->buffer[prod_cons->cons_pos];
+                printf("Rettirou = %s\n", buff_send);
+                prod_cons->buffer[prod_cons->cons_pos] = NULL;
 
-            sendto(client->descriptor, buff_send, strlen(buff_send), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+                sendto(client->descriptor, buff_send, strlen(buff_send), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
 
-            prod_cons->cons_pos = (prod_cons->cons_pos + 1) % MAX_BUFF_SIZE;
-            prod_cons->buff_filled--;
+                i_send_msg = 1;
 
-            pthread_mutex_unlock(&prod_cons->mutex);
-            sem_post(&prod_cons->empty);
-            printf("Saiu - Consumidor\n");
-        }
-        else /* ecoa mensagem */
+                prod_cons->cons_pos = (prod_cons->cons_pos + 1) % MAX_BUFF_SIZE;
+                prod_cons->buff_filled--;
+
+                pthread_mutex_unlock(&prod_cons->mutex);
+                sem_post(&prod_cons->empty);
+
+//                timeout = wait_timeout(server->descriptor); não sei se é
+//                aki o timeout
+                printf("Saiu - Consumidor\n");
+            }
+        else { /* ecoa mensagem e reenvia*/
             /* talvez tenha que sincronizar para ecoar na tela */
             fprintf(stdout,"%s\n", buff_rec);
+            sleep(2);
+            if (i_send_msg) {
+                i_send_msg = 0;
+                sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+            }
+            else
+                sendto(client->descriptor, buff_rec, strlen(buff_rec), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+        }
 
     } while(1);
 
