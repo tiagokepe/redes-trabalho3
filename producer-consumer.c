@@ -71,7 +71,6 @@ void *remove_buffer(prod_cons_t *prod_cons) {
 //        printf("PROD - DO\n");
         clear_buff(&buff_rec);
         res_send = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
-        printf("Addr = %d\n", from.sin_addr.s_addr);
         printf("Recebeu msg = %s\n", buff_rec);
         if (res_send < 0) error("recvfrom");
 
@@ -80,7 +79,8 @@ void *remove_buffer(prod_cons_t *prod_cons) {
             /* Se buffer vazio, envia o bastao imediatamente */
             if(prod_cons->buff_filled == 0)
                 sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
-            else {
+            else /* envia próximaa mensagem */
+            {
                 //Fazer send_message()
 
                 printf("Entrou - Consumidor\n");
@@ -102,19 +102,25 @@ void *remove_buffer(prod_cons_t *prod_cons) {
                 pthread_mutex_unlock(&prod_cons->mutex);
                 sem_post(&prod_cons->empty);
 
-//                timeout = wait_timeout(server->descriptor); não sei se é
-//                aki o timeout
+                timeout = wait_timeout(server->descriptor);
+                if(timeout) {
+                    /* retira mensagem da rede */
+                    res_send = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
+                    if (res_send < 0) error("recvfrom");
+                    /* repassa bastão */
+                    sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr*)&(client->sock_addr), sizeof(struct sockaddr_in));
+                }
                 printf("Saiu - Consumidor\n");
             }
         else { /* ecoa mensagem e reenvia*/
             /* talvez tenha que sincronizar para ecoar na tela */
             fprintf(stdout,"%s\n", buff_rec);
             sleep(2);
-            if (i_send_msg) {
+/*            if (i_send_msg) {
                 i_send_msg = 0;
                 sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
             }
-            else
+            else */
                 sendto(client->descriptor, buff_rec, strlen(buff_rec), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
         }
 
