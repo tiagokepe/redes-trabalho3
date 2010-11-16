@@ -81,40 +81,43 @@ void *remove_buffer(prod_cons_t *prod_cons) {
         clear_buff(&buff_rec);
 
         pthread_mutex_lock(&timeout->mutex);
-        if (timeout->time == TIMEOUT) {
+        if (timeout->time >= TIMEOUT) {
            printf("IF timout\n");
            timeout->time=0;
+           pthread_mutex_unlock(&timeout->mutex);
            i_send_restore = 1;
            /* Restaura o bastão */
             do {
+                printf("Enviando RESTORE\n");
                 sendto(client->descriptor, MSG_RESTORE, strlen(MSG_RESTORE), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
-                sleep(TIMEOUT);
-                res_rec = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
+                if ( timeout_listen(server->descriptor) )
+                    res_rec = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
             } while( strcmp(buff_rec, MSG_RESTORE) ); /* Aguarda a volta da MSG_RESTORE */
         }
         else {
-            res_rec = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
+            pthread_mutex_unlock(&timeout->mutex);
+//            printf("Recebendo...\n");
+            if ( timeout_listen(server->descriptor) )
+                res_rec = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
+//            printf("Recebeu....\n");
             if (res_rec < 0) error("recvfrom");
         }
-        pthread_mutex_unlock(&timeout->mutex);
-
         /* verifica se recebeu o bastão */
         if ( !strcmp(buff_rec, MSG_BASTAO) ) {
-           if(run_thread_timeout == 1) {
-//                printf("Cancelando tread\n");
-                pthread_cancel(thread_timeout);
-                timeout->time = 0;
-                run_thread_timeout = 0;
-            }
             /* Se buffer vazio, envia o bastao imediatamente */
             if(prod_cons->buff_filled == 0) {
 //                printf("Buffer vazio\n");
-               sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+                pthread_mutex_lock(&timeout->mutex);
+                timeout->time = 0;
+                pthread_mutex_unlock(&timeout->mutex);
+
+                sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
                 /* Dispara timeout do bastão */
 //				printf("Criando thread - buffer vazio\n");
-				if( !pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout) )
-					printf("Criou thread - buffer vazio\n");
-                run_thread_timeout = 1;
+				if(run_thread_timeout == 0) {
+                    pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout);
+                    run_thread_timeout = 1;
+                }
             }
             else /* envia próximaa mensagem */
             {
@@ -153,26 +156,36 @@ void *remove_buffer(prod_cons_t *prod_cons) {
                     sendto(client->descriptor, MSG_RESTORE, strlen(MSG_RESTORE), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
                 }
                 else {
-                    sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
-                    pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout);
-                    run_thread_timeout = 1;
-                    i_send_restore = 0;
-                }
-            else
-            { /* ecoa mensagem e reenvia*/
-                fprintf(stdout,"-----%s-----\n", buff_rec);
-                sleep(2);
-				if(i_send_msg) {
-                    i_send_msg = 0;
+                    pthread_mutex_lock(&timeout->mutex);
+                    timeout->time = 0;
+                    pthread_mutex_unlock(&timeout->mutex);
+
                     sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
                     /* Dispara timeout do bastão */
-    				if( !pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout) )
-						printf("Criando thread - msg comumm\n");
-
-                    run_thread_timeout = 1;
+	    			if(run_thread_timeout == 0) {
+                        pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout);
+                        run_thread_timeout = 1;
+                    }
                 }
-                else
-                    sendto(client->descriptor, buff_rec, strlen(buff_rec), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+            else if( strlen(buff_rec) ) { /* ecoa mensagem e reenvia*/
+                    fprintf(stdout,"-----%s-----\n", buff_rec);
+                    sleep(2);
+		    		if(i_send_msg) {
+                        i_send_msg = 0;
+
+                        pthread_mutex_lock(&timeout->mutex);
+                        timeout->time = 0;
+                        pthread_mutex_unlock(&timeout->mutex);
+
+                        sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+                        /* Dispara timeout do bastão */
+    	    			if(run_thread_timeout == 0) {
+                            pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout);
+                            run_thread_timeout = 1;
+                        }
+                    }
+                    else
+                        sendto(client->descriptor, buff_rec, strlen(buff_rec), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
             }
 
     } while(1);

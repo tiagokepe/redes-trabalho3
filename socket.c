@@ -6,13 +6,33 @@ static void error(char *msg) {
     exit(0);
 }
 
+/* Espera um tempo por resposta no socket. */
+int timeout_listen(int rs)
+{
+    fd_set rfds;
+    struct timeval tv;
+    /* Watch socket to see when it has input. */
+    FD_ZERO(&rfds);
+    FD_SET(rs, &rfds);
+
+    /* Wait up to TIMEOUT */
+    tv.tv_sec = TIMEOUT;
+    tv.tv_usec = 0;
+
+    return select(rs+1, &rfds, NULL, NULL, &tv);
+}
+
+
+
 void *wait_timeout(timeout_t *timeout) {
     printf("Entrou no timeout\n");
-    sleep(TIMEOUT);
-    pthread_mutex_lock(&timeout->mutex);
-    timeout->time = TIMEOUT;
-    pthread_mutex_unlock(&timeout->mutex);
-    printf("Saiu do timeout\n");
+    while (1) {
+        sleep(1);
+        pthread_mutex_lock(&timeout->mutex);
+        timeout->time++;
+        fprintf(stderr,"timeout = %d\n", timeout->time);
+        pthread_mutex_unlock(&timeout->mutex);
+    }
     pthread_exit((void*)0);
 }
 

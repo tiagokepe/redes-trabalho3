@@ -3,6 +3,7 @@
 
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #include <netdb.h>
 
@@ -30,7 +31,9 @@ typedef struct timeout_t {
 
 client_socket_t *init_client(unsigned int port, const char *next_maq);
 server_socket_t *init_server(unsigned int port);
-void *wait_timeout(timeout_t *timeout);
+int timeout_listen(int rs);
 
+/* thread de timeout */
+void *wait_timeout(timeout_t *timeout);
 #endif
 
