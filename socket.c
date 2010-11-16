@@ -6,18 +6,14 @@ static void error(char *msg) {
     exit(0);
 }
 
-int wait_timeout(int descriptor) {
-    fd_set rfds;
-    struct timeval tv;
-    /* Watch socket to see when it has input. */
-    FD_ZERO(&rfds);
-    FD_SET(descriptor, &rfds);
-
-    /* Wait up to TIMEOUT */
-    tv.tv_sec = TIMEOUT;
-    tv.tv_usec = 0;
-
-    return select(descriptor+1, &rfds, NULL, NULL, &tv);
+void *wait_timeout(timeout_t *timeout) {
+    printf("Entrou no timeout\n");
+    sleep(TIMEOUT);
+    pthread_mutex_lock(&timeout->mutex);
+    timeout->time = TIMEOUT;
+    pthread_mutex_unlock(&timeout->mutex);
+    printf("Saiu do timeout\n");
+    pthread_exit((void*)0);
 }
 
 client_socket_t *init_client(unsigned int port, const char *next_maq) {

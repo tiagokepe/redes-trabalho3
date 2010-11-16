@@ -50,13 +50,18 @@ void *insert_buffer(prod_cons_t *prod_cons) {
 void *remove_buffer(prod_cons_t *prod_cons) {
     char *buff_send;
     char *buff_rec = (char *)malloc(MAX_LINE*sizeof(char));
-    ssize_t res_send;
+    ssize_t res_rec;
     unsigned int fromlen;
     struct sockaddr_in from;
     server_socket_t *server;
     client_socket_t *client;
+
     unsigned int i_send_msg = 0;
-    int timeout;
+    unsigned int i_send_restore = 0;
+    unsigned int run_thread_timeout = 0;
+    timeout_t *timeout = (timeout_t *)malloc(sizeof(timeout_t));
+    timeout->time = 0;
+    pthread_t thread_timeout;
 
     server = init_server(prod_cons->port);
     client = init_client(prod_cons->port, prod_cons->next_maq);
@@ -64,21 +69,53 @@ void *remove_buffer(prod_cons_t *prod_cons) {
     fromlen = sizeof(struct sockaddr_in);
 
     /* enviar bastão */
-    if (prod_cons->is_initial == 'B')
+    if (prod_cons->is_initial == 'B') {
+        printf("Enviando bastão inicial\n");
         sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
-
+        /* Dispara timeout do bastão */
+        pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout);
+        run_thread_timeout = 1;
+    }
     do {
 //        printf("PROD - DO\n");
         clear_buff(&buff_rec);
-        res_send = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
-        printf("Recebeu msg = %s\n", buff_rec);
-        if (res_send < 0) error("recvfrom");
+
+        pthread_mutex_lock(&timeout->mutex);
+        if (timeout->time == TIMEOUT) {
+           printf("IF timout\n");
+           timeout->time=0;
+           i_send_restore = 1;
+           /* Restaura o bastão */
+            do {
+                sendto(client->descriptor, MSG_RESTORE, strlen(MSG_RESTORE), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+                sleep(TIMEOUT);
+                res_rec = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
+            } while( strcmp(buff_rec, MSG_RESTORE) ); /* Aguarda a volta da MSG_RESTORE */
+        }
+        else {
+            res_rec = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
+            if (res_rec < 0) error("recvfrom");
+        }
+        pthread_mutex_unlock(&timeout->mutex);
 
         /* verifica se recebeu o bastão */
-        if ( !strcmp(buff_rec, MSG_BASTAO) )
+        if ( !strcmp(buff_rec, MSG_BASTAO) ) {
+           if(run_thread_timeout == 1) {
+//                printf("Cancelando tread\n");
+                pthread_cancel(thread_timeout);
+                timeout->time = 0;
+                run_thread_timeout = 0;
+            }
             /* Se buffer vazio, envia o bastao imediatamente */
-            if(prod_cons->buff_filled == 0)
-                sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+            if(prod_cons->buff_filled == 0) {
+//                printf("Buffer vazio\n");
+               sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+                /* Dispara timeout do bastão */
+//				printf("Criando thread - buffer vazio\n");
+				if( !pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout) )
+					printf("Criou thread - buffer vazio\n");
+                run_thread_timeout = 1;
+            }
             else /* envia próximaa mensagem */
             {
                 //Fazer send_message()
@@ -102,27 +139,41 @@ void *remove_buffer(prod_cons_t *prod_cons) {
                 pthread_mutex_unlock(&prod_cons->mutex);
                 sem_post(&prod_cons->empty);
 
-                timeout = wait_timeout(server->descriptor);
-                if(timeout) {
-                    /* retira mensagem da rede */
-                    res_send = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
-                    if (res_send < 0) error("recvfrom");
-                    /* repassa bastão */
-                    sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr*)&(client->sock_addr), sizeof(struct sockaddr_in));
-                }
                 printf("Saiu - Consumidor\n");
             }
-        else { /* ecoa mensagem e reenvia*/
-            /* talvez tenha que sincronizar para ecoar na tela */
-            fprintf(stdout,"%s\n", buff_rec);
-            sleep(2);
-/*            if (i_send_msg) {
-                i_send_msg = 0;
-                sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
-            }
-            else */
-                sendto(client->descriptor, buff_rec, strlen(buff_rec), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
         }
+        else
+            if( !strcmp(buff_rec, MSG_RESTORE) )
+                if(i_send_restore == 0) {
+                    if(run_thread_timeout == 1) {
+                        pthread_cancel(thread_timeout);
+                        run_thread_timeout = 0;
+                    }
+                    timeout->time = 0;
+                    sendto(client->descriptor, MSG_RESTORE, strlen(MSG_RESTORE), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+                }
+                else {
+                    sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+                    pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout);
+                    run_thread_timeout = 1;
+                    i_send_restore = 0;
+                }
+            else
+            { /* ecoa mensagem e reenvia*/
+                fprintf(stdout,"-----%s-----\n", buff_rec);
+                sleep(2);
+				if(i_send_msg) {
+                    i_send_msg = 0;
+                    sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+                    /* Dispara timeout do bastão */
+    				if( !pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout) )
+						printf("Criando thread - msg comumm\n");
+
+                    run_thread_timeout = 1;
+                }
+                else
+                    sendto(client->descriptor, buff_rec, strlen(buff_rec), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+            }
 
     } while(1);
 
