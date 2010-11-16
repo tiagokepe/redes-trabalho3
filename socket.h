@@ -13,7 +13,7 @@
 
 #define MSG_BASTAO "BASTAO"
 #define MSG_RESTORE "R_BASTAO"
-#define TIMEOUT 10 /* 2*num_maquinas + delay_de_processamento + delay_da_transmissao */
+#define TIMEOUT 12 /* 2*num_maquinas + delay_de_processamento + delay_da_transmissao */
 
 typedef struct client_socket_t {
     int descriptor;

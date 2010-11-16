@@ -8,8 +8,8 @@
 
 #include "socket.h"
 
-#define MAX_LINE 1024
-#define MAX_BUFF_SIZE 2
+#define MAX_LINE 4096
+#define MAX_BUFF_SIZE 64
 
 typedef struct prod_cons_t {
     char is_initial;

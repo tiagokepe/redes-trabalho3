@@ -50,6 +50,8 @@ void *insert_buffer(prod_cons_t *prod_cons) {
 void *remove_buffer(prod_cons_t *prod_cons) {
     char *buff_send;
     char *buff_rec = (char *)malloc(MAX_LINE*sizeof(char));
+	char host_name[20];
+        
     ssize_t res_rec;
     unsigned int fromlen;
     struct sockaddr_in from;
@@ -67,7 +69,9 @@ void *remove_buffer(prod_cons_t *prod_cons) {
     client = init_client(prod_cons->port, prod_cons->next_maq);
 
     fromlen = sizeof(struct sockaddr_in);
-
+    gethostname(host_name,20);
+	strcat(host_name, MSG_RESTORE);
+    
     /* enviar bastão */
     if (prod_cons->is_initial == 'B') {
         printf("Enviando bastão inicial\n");
@@ -86,20 +90,22 @@ void *remove_buffer(prod_cons_t *prod_cons) {
            timeout->time=0;
            pthread_mutex_unlock(&timeout->mutex);
            i_send_restore = 1;
-           /* Restaura o bastão */
+       /* Restaura o bastão */
             do {
+				clear_buff(&buff_rec);
                 printf("Enviando RESTORE\n");
                 sendto(client->descriptor, MSG_RESTORE, strlen(MSG_RESTORE), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
                 if ( timeout_listen(server->descriptor) )
                     res_rec = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
-            } while( strcmp(buff_rec, MSG_RESTORE) ); /* Aguarda a volta da MSG_RESTORE */
+				printf("MSG = %s\n", buff_rec);
+            } while( strcmp(buff_rec, MSG_RESTORE) && strcmp(buff_rec, MSG_BASTAO) ); /* Aguarda a volta da MSG_RESTORE */
         }
         else {
             pthread_mutex_unlock(&timeout->mutex);
-//            printf("Recebendo...\n");
+            printf("Recebendo...\n");
             if ( timeout_listen(server->descriptor) )
                 res_rec = recvfrom(server->descriptor, buff_rec, MAX_LINE, 0, (struct sockaddr *)&from, &fromlen);
-//            printf("Recebeu....\n");
+            printf("Recebeu.... = %s\n", buff_rec);
             if (res_rec < 0) error("recvfrom");
         }
         /* verifica se recebeu o bastão */
@@ -119,8 +125,22 @@ void *remove_buffer(prod_cons_t *prod_cons) {
                     run_thread_timeout = 1;
                 }
             }
-            else /* envia próximaa mensagem */
+            else if(i_send_restore)  /* envia próximaa mensagem */
             {
+				i_send_restore = 0;
+				pthread_mutex_lock(&timeout->mutex);
+                timeout->time = 0;
+                pthread_mutex_unlock(&timeout->mutex);
+
+                sendto(client->descriptor, MSG_BASTAO, strlen(MSG_BASTAO), 0, (struct sockaddr *)&(client->sock_addr), sizeof(struct sockaddr_in));
+                /* Dispara timeout do bastão */
+//				printf("Criando thread - buffer vazio\n");
+				if(run_thread_timeout == 0) {
+                    pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout);
+                    run_thread_timeout = 1;
+				}
+			}
+ 			else {
                 //Fazer send_message()
 
                 printf("Entrou - Consumidor\n");
@@ -166,6 +186,7 @@ void *remove_buffer(prod_cons_t *prod_cons) {
                         pthread_create(&thread_timeout, NULL, (void *)&wait_timeout, (void*)timeout);
                         run_thread_timeout = 1;
                     }
+					i_send_restore = 0;
                 }
             else if( strlen(buff_rec) ) { /* ecoa mensagem e reenvia*/
                     fprintf(stdout,"-----%s-----\n", buff_rec);
