@@ -1,0 +1,42 @@
+\documentclass[a4paper,10pt]{coursepaper}
+\usepackage[latin1]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage[pdftex]{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{textcomp}
+\usepackage{float}
+
+
+% Title Page
+\title{Implementação de uma rede \textit{Token Ring}}
+\author{Antonio Carlos Salzvedel Furtado Junior e Tiago Rodrigo Kepe}
+\studentnumber{GRR20080946,GRR20084630}
+\college{Universidade Federal do Paraná}
+\coursename{Bacharelado em Ciência da Computação}
+\coursenumber{CI058}
+\coursesection{Redes I}
+\instructor{Luiz Carlos Pessoa Albini}
+
+
+\begin{document}
+\maketitle
+\section{Implementação}
+
+O nosso programa responsável pela rede se chama tokenring. Ele é iniciado com dois parâmetros obrigatórios. O primeiro deles é o nome da próxima máquina contida no anel, o segundo é a porta usada, que deve ser a mesma para toda a rede. 
+
+Com base nos parâmetros, nosso programa cria um serivor e um cliente. O servidor é responsável por escutar mensagens na porta especificada. O cliente é reponsável tanto por repassar as mensagens escutadas pelo servidor, como enviar suas próprias mensagens.
+
+Para que pudessemos ler mensagens produzidas por uma determinada máquina ao mesmo tempo em que repassavamos mensagens da rede, tais como o bastão, decidimos usar diferentes threads para realizar este trabalho. Então usamos a biblioteca PThreads e baseamos nosso trabalho no esquema produtor-consumidor.
+
+\subsection{Descrição das Threads}
+
+Ao todo, usamos três threads em nossa aplicação, descreverei brevemente a utilidade de cada uma.
+
+A primeira delas é a insert_buffer, ela é a thread produtora. Ela apenas lê linhas da entrada padrão e cada linha é colocada em uma entrada de um \textit{bounded buffer}. Cada linha deve ter no máximo MAX_LINE caracteres e o buffer tem MAX_BUFF_SIZE espaços.
+
+A segunda thread é a remove_buffer. Ela possui um conjunto maior de tarefas, além de ser a thread consumidora. Ela deve escutar mensagens na rede, e caso ela tenha recebido o bastão ela deve verficar se há algo a ser consumido do buffer. Ela deve mandar o bastão imediatamente se não houver nada no buffer, ou mandar a mensagem caso contrário. Ela deve também retirar as mensagens que mandou, ela deve também reconstruir o bastão caso o tenha perdido, ou seja, o timeout estourou e ela não recebeu o bastão. Uma outra tarefa dela é criar o bastão inicial caso seja designada a fazê-lo.
+
+A última thread é o waitTimeout. AO contrário das outras threads, ela só é iniciada quando o bastão é criado ou quando o bastão passa pela
+
+
+\end{document}
