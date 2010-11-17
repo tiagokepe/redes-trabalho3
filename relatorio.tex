@@ -26,17 +26,17 @@ O nosso programa responsável pela rede se chama tokenring. Ele é iniciado com do
 
 Com base nos parâmetros, nosso programa cria um serivor e um cliente. O servidor é responsável por escutar mensagens na porta especificada. O cliente é reponsável tanto por repassar as mensagens escutadas pelo servidor, como enviar suas próprias mensagens.
 
-Para que pudessemos ler mensagens produzidas por uma determinada máquina ao mesmo tempo em que repassavamos mensagens da rede, tais como o bastão, decidimos usar diferentes threads para realizar este trabalho. Então usamos a biblioteca PThreads e baseamos nosso trabalho no esquema produtor-consumidor.
+Para que pudessemos ler mensagens produzidas por uma determinada máquina ao mesmo tempo em que repassavamos mensagens da rede, tais como o bastão, decidimos usar diferentes threads adicionais para realizar este trabalho. Então usamos a biblioteca PThreads e baseamos nosso trabalho no esquema produtor-consumidor.
 
 \subsection{Descrição das Threads}
 
 Ao todo, usamos três threads em nossa aplicação, descreverei brevemente a utilidade de cada uma.
 
-A primeira delas é a insert_buffer, ela é a thread produtora. Ela apenas lê linhas da entrada padrão e cada linha é colocada em uma entrada de um \textit{bounded buffer}. Cada linha deve ter no máximo MAX_LINE caracteres e o buffer tem MAX_BUFF_SIZE espaços.
+A primeira delas é a insert\_buffer, ela é a thread produtora. Ela apenas lê linhas da entrada padrão e cada linha é colocada em uma entrada de um \textit{bounded buffer}. Cada linha deve ter no máximo MAX\_LINE caracteres e o buffer tem MAX\_BUFF\_SIZE espaços.
 
-A segunda thread é a remove_buffer. Ela possui um conjunto maior de tarefas, além de ser a thread consumidora. Ela deve escutar mensagens na rede, e caso ela tenha recebido o bastão ela deve verficar se há algo a ser consumido do buffer. Ela deve mandar o bastão imediatamente se não houver nada no buffer, ou mandar a mensagem caso contrário. Ela deve também retirar as mensagens que mandou, ela deve também reconstruir o bastão caso o tenha perdido, ou seja, o timeout estourou e ela não recebeu o bastão. Uma outra tarefa dela é criar o bastão inicial caso seja designada a fazê-lo.
+A segunda thread é a remove\_buffer. Ela possui um conjunto maior de tarefas, além de ser a thread consumidora. Ela deve escutar mensagens na rede, e caso ela tenha recebido o bastão ela deve verficar se há algo a ser consumido do buffer. Ela deve mandar o bastão imediatamente se não houver nada no buffer, ou mandar a mensagem caso contrário. Ela deve também retirar as mensagens que mandou, ela deve também reconstruir o bastão caso o tenha perdido, ou seja, o timeout estourou e ela não recebeu o bastão. Uma outra tarefa dela é criar o bastão inicial caso seja designada a fazê-lo.
 
-A última thread é o waitTimeout. Ao contrário das outras threads, ela só é iniciada quando o bastão é criado ou quando o bastão é recebido pela primeira vez pelo processo. Sua única função é incrementa uma variável chamada time. Esta variável é compartilhada entre esta thread e a remove_buffer, caso esta variável seja maior que uma constante TIMEOUT, remove_buffer deve 
+A última thread é o waitTimeout. Ao contrário das outras threads, ela só é iniciada quando o bastão é criado ou quando o bastão é recebido pela primeira vez pelo processo. Sua única função é incrementar uma variável chamada time. Esta variável é compartilhada entre esta thread e a remove\_buffer, caso esta variável seja maior que uma constante TIMEOUT, remove\_buffer deve começar o processo para recriar o bastão. Cabe a remove\_buffer zerar este time quando receber o bastão. As operações sobre esta variável são protegidas.
 
 
 \end{document}
