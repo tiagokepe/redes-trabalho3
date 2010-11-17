@@ -22,9 +22,9 @@
 \maketitle
 \section{Implementação}
 
-O nosso programa responsável pela rede se chama tokenring. Ele é iniciado com dois parâmetros obrigatórios. O primeiro deles é o nome da próxima máquina contida no anel, o segundo é a porta usada, que deve ser a mesma para toda a rede. 
+O programa responsável pela rede se chama tokenring. Ele é iniciado com dois parâmetros obrigatórios. O primeiro deles, é a porta usada que deve ser a mesma para toda a rede, o segundo é o nome da próxima máquina contida no anel.
 
-Com base nos parâmetros, nosso programa cria um serivor e um cliente. O servidor é responsável por escutar mensagens na porta especificada. O cliente é reponsável tanto por repassar as mensagens escutadas pelo servidor, como enviar suas próprias mensagens.
+Com base nos parâmetros, nosso programa cria um servidor e um cliente. O servidor é responsável por escutar mensagens na porta especificada. O cliente é reponsável tanto por repassar as mensagens escutadas pelo servidor, como enviar suas próprias mensagens.
 
 Para que pudessemos ler mensagens produzidas por uma determinada máquina ao mesmo tempo em que repassavamos mensagens da rede, tais como o bastão, decidimos usar diferentes threads adicionais para realizar este trabalho. Então usamos a biblioteca PThreads e baseamos nosso trabalho no esquema produtor-consumidor.
 
@@ -38,5 +38,15 @@ A segunda thread é a remove\_buffer. Ela possui um conjunto maior de tarefas, al
 
 A última thread é o waitTimeout. Ao contrário das outras threads, ela só é iniciada quando o bastão é criado ou quando o bastão é recebido pela primeira vez pelo processo. Sua única função é incrementar uma variável chamada time. Esta variável é compartilhada entre esta thread e a remove\_buffer, caso esta variável seja maior que uma constante TIMEOUT, remove\_buffer deve começar o processo para recriar o bastão. Cabe a remove\_buffer zerar este time quando receber o bastão. As operações sobre esta variável são protegidas.
 
+\subsection{Protocolo de recuperação}
+
+Nesse trabalho foi implementado um protocolo para recuperar o bastão. O
+mecanismo de recuperação consiste em acionar o timeout quando uma máquina
+repassar o bastão, se o timeout estourar essa máquina envia uma mensagem
+especial chamada "MSG\_RESTORE", as demais máquinas só repassam essa mensagem imediatamente até chegar na máquina que a originou, então essa máquina cria um novo bastão e envia.
+
+Com esse protocolo fizemos testes de perda do bastão, que consiste em parar o programa em alguma máquina da rede e esperar qualquer máquina enviar a mensagem de restauração, logo após essa mensagem ser criada colocamos a máquina no ar.
+
+Também é possível restaurar a rede se um link cair e depois de algum tempo voltar, se isso ocorrer a rede se recupera e volta a funcionar normalmente.
 
 \end{document}
